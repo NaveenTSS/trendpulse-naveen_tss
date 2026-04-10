@@ -5,38 +5,43 @@ Created on Tue Apr  7 21:38:41 2026
 
 @author: Naveen
 
+
 This script:
 - Fetches top Hacker News stories
-- Categorizes them by keywords
-- Collects up to 125 stories total
+- Categorizes stories using keyword matching
+- Collects up to 125 stories in total
 - Limits each category to a maximum of 25 stories
-- Saves the final result as a JSON file
+- Saves the collected data as a JSON file
+
 """
 
 # ------------------------------
 # Imports
 # ------------------------------
-import requests      # For making HTTP API calls
-import json          # For JSON serialization
-import time          # For rate limiting (sleep)
-import os            # For file and folder operations
+import requests      # Used to call the Hacker News API
+import json          # Used to serialize Python objects into JSON
+import time          # Used for rate-limiting API calls
+import os            # Used for file and directory operations
 
 # ------------------------------
 # Base output path (local folder)
 # ------------------------------
-path = r"C:\Naveen\Formula\Python in Excel\mini project"
+# All generated data will be saved relative to this directory
+path = r"C:\Users\Naveen\OneDrive - Patracorp\Formula\Python in Excel\mini project"
 
 # ------------------------------
 # Hacker News API endpoint
 # ------------------------------
+# Endpoint that returns a list of top story IDs
 url = "https://hacker-news.firebaseio.com/v0/topstories.json"
 
-# Fetch the top 500 story IDs from Hacker News
+# Fetch the top 500 story IDs to work with a larger pool
 story_ids = requests.get(url=url).json()[:500]
 
 # ------------------------------
 # Category definitions and keywords
 # ------------------------------
+# Each category is associated with keywords used for classification
 categories = [
     {
         "Category": "technology",
@@ -65,8 +70,8 @@ categories = [
 # ------------------------------
 def get_stories(story_id):
     """
-    Given a story ID, fetch the full story details
-    from the Hacker News API.
+    Fetches full story details from Hacker News
+    using the provided story ID.
     """
     story_url = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
     headers = {"User-Agent": "TrendPulse/1.0"}
@@ -77,27 +82,27 @@ def get_stories(story_id):
 # ------------------------------
 def get_category(title):
     """
-    Match words in the title against predefined
-    keyword lists to assign a category.
+    Determines the category of a story by checking
+    if any predefined keywords appear in the title.
     """
     if not title:
         return None
 
     for category in categories:
         for keyword in category["Keywords"]:
-            # Case-insensitive keyword match
+            # Perform case-insensitive word-level matching
             if keyword.lower() in title.lower().split(" "):
                 return category["Category"]
 
-    # If no keyword matches
+    # Return None if no category matches
     return None
 
 # ------------------------------
 # Storage for collected stories
 # ------------------------------
-stories = []
+stories = []  # Final list of collected stories
 
-# Count how many stories per category have been collected
+# Track how many stories have been collected per category
 counts = {
     "technology": 0,
     "worldnews": 0,
@@ -106,7 +111,7 @@ counts = {
     "entertainment": 0
 }
 
-# Track categories that have reached their limit
+# Track categories that have reached the 25-story limit
 restricted_categories = set()
 
 # ------------------------------
@@ -114,29 +119,30 @@ restricted_categories = set()
 # ------------------------------
 for each_id in story_ids:
 
-    # Stop once we collect 125 stories total
-    if len(stories) == 125:
-        break
-
+    # Fetch individual story data
     story = get_stories(each_id)
     if not story:
         continue
 
     title = story.get("title")
 
-    # Determine category of the story
+    # Determine the story category
     bin_item = get_category(title)
 
-    # Skip categories already marked as full
+    # Skip stories with categories we do not track
+    if bin_item not in counts:
+        continue
+
+    # Skip categories that have reached their limit
     if bin_item in restricted_categories:
         continue
 
-    # Enforce max 25 stories per category
+    # Enforce maximum of 25 stories per category
     if counts.get(bin_item, 0) >= 25:
         restricted_categories.add(bin_item)
         continue
 
-    # Build final record
+    # Build the final story record
     fill = {
         "post_id": story.get("id"),
         "title": title,
@@ -147,14 +153,13 @@ for each_id in story_ids:
         "collected_at": time.time()
     }
 
-    # Store the story
+    # Add story to results
     stories.append(fill)
 
-    # Increment category counter if tracked
-    if bin_item in counts:
-        counts[bin_item] += 1
+    # Update category count
+    counts[bin_item] += 1
 
-    # Rate limit API requests
+    # Pause to avoid hammering the API
     time.sleep(0.3)
 
 # ------------------------------
@@ -165,15 +170,16 @@ json_data = json.dumps(stories, indent=2)
 # ------------------------------
 # Write output file
 # ------------------------------
+# Change working directory to project path
 os.chdir(path)
 
-# Create output folder (will fail if it already exists)
-os.mkdir("data")
+# Create output directory if it does not exist
+os.makedirs("data", exist_ok=True)
 
-# Build full file path safely
+# Construct full file path safely
 new_path = os.path.join(path, r"data\trends_20240115.json")
 
-# Write JSON to file
+# Write JSON data to file
 with open(new_path, "w") as f:
     f.write(json_data)
 
